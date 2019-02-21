@@ -1,0 +1,95 @@
+
+install.packages("ggplot2", dependencies = T) 
+install.packages("knitr", dependencies = T)
+install.packages("dplyr", dependencies = T)
+
+document your exploration and analysis in an RMD file which you will submit
+
+1. A stream-of-consciousness analysis and exploration of the data.
+
+a. Headings and text should organize your thoughts and reflect your analysis as you explored the data.
+b. Plots in this analysis do not need to be polished with labels, units, and titles; these plots are exploratory 
+(quick and dirty). They should, however, be of the appropriate type and effectively convey the information you 
+glean from them.
+c. You can iterate on a plot in the same R chunk, but you don’t need to show every plot iteration in your analysis.
+
+
+2. A section at the end called “Final Plots and Summary”
+
+You will select three plots from your analysis to polish and share in this section. 
+The three plots should show different trends and should be polished with appropriate labels, units, and titles 
+(see the Project Rubric for more information).
+
+
+3. A final section called “Reflection”
+
+This should contain a few sentences about your struggles, successes, and ideas for future exploration 
+on the data set (see the Project Rubric for more information).
+
+
+The data set you submit (only if you chose your own) should include a text file, like those in the R documentation 
+(e.g. ?diamonds) that describes the source of your data and an explanation of the variables in the data set 
+(definition of any variables, units, levels of categorical variables, and the data generating process, such as 
+	how data was collected if possible).
+
+
+
+What to include in your submission?
+
+The RMD file containing the analysis (final plots and summary, and reflection)
+the HTML file knitted from the RMD file using the knitr package
+the original data set and source if you used your own data rather than one recommended by Udacity 
+(Note: do not submit a data set if you used one that Udacity recommended)
+A list of Web sites, books, forums, blog posts, github repositories, etc. that you referred to or used in 
+creating your submission (add N/A if you did not use any such resources).
+
+
+
+Your project must avoid these common problems in order to pass.
+
+- Insufficient documentation of transformation steps. Data processing or transformations 
+(creating a categorical variable) should be performed programmatically and included in the RMD file 
+and the final knitted HTML output. When you perform these operations, make sure you have text that 
+documents the creation of these transformed variables.
+- Insufficient comments following plots. For every plot or related group of plots, make sure you follow 
+them with a text chunk that describes what can be observed or understood. Your reader should be able to 
+follow your thought processes through the alternating text and visualization sections.
+- Final Plots section is not included. Following your main exploration (univariate, bivariate, and 
+	multivariate plots and analysis), you need to select three visualizations to present in the final 
+plots section. Make sure that these plots illustrate the most interesting findings or patterns from 
+your investigation. The plots should now be polished with appropriate visualization types, titles, 
+and axis labels with units. See the subsection below for notes on making plots for this part of the 
+project report.
+- Reflection section is not included or is not the last section in the RMD file. Make sure you have 
+a reflection section following your Final Plots section that summarizes your exploration and provides 
+some thoughts for future analysis. This should be the last part of the document.
+
+
+
+The Final Plots section in your RMD file should contain three polished plots that give insight into the 
+data set that you investigated.
+
+Each plot should also contain a caption or description about what the plot shows.
+
+	Draw comparisons.
+	Identify trends.
+	Engage a wide audience.
+	Explain a complicated finding.
+	Clarify a gap between perception and reality.
+	Enable the reader to digest large amounts of information.
+
+	are axes labeled?
+	are units labeled on each axis?
+	are plots titled?
+	are all labels, titles, and units readable?
+
+
+Reflections
+
+	Where did I run into difficulties in the analysis?
+	Where did I find successes?
+	How could the analysis be enriched in future work (e.g. additional data and analyses)?
+
+
+
+

@@ -1,0 +1,1196 @@
+---
+title: 'Exploration of the Red Wines Dataset and Factors which Influence Quality'
+output:
+  html_document:
+    theme: cerulean
+  pdf_document: default
+---
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(fig.width=12, fig.height=8, fig.path='Figs/',
+                      echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+This report explores the 'Red Wines' dataset, which is described as containing 1599 observations with 11 variables which measure chemical properties. There is also a quality rating score which is the variable of interest.
+
+The main focus of the exploration will be the question: "What (chemical property) variables influence the quality score of red wines?" We will start with univariate investigation of the 12 variables, then proceed to bivariate and multivariate explorations of quality v. the other 11 variables. Finally, we will fit a linear model to predict the quality based on the other factors.
+
+```{r echo=FALSE, packages}
+# clear working environment
+rm(list=ls()) 
+
+# Load r packages
+library(ggplot2)
+library(knitr)
+library(dplyr)
+
+library(grid)
+library(gridExtra)
+library(reshape2)
+library(GGally)
+library(caret)
+library(ggpubr)
+
+```
+
+First, load the data and confirm the dimensions of the dataset and the variables.
+
+```{r echo=FALSE, Load_the_Data}
+# Load the Data
+red <- read.csv('wineQualityReds.csv')
+
+# check the dimensions
+dim(red)
+# check for missing values
+dim(na.omit(red))
+
+# list the variable names
+names(red)
+```
+
+------
+
+# Univariate Plots Section
+
+There are 13 total columns in the dataset. Check further on the variable names and structure:
+
+```{r echo=FALSE, Check_Variables}
+# Load the Data
+str(red)
+```
+
+Of these 13 variables, 11 record the objective chemical properties, 1 ("X") is an ID variable, and 1 ("quality") records the subjective quality score.
+
+Since __"quality"__ is the value we are interested in predicting, check the distribution of it first in a histogram, then check the summary (min, max, mean, median, and quartile values):
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_1}
+# table of quality values
+table(red$quality)
+
+# histogram of quality scores
+ggplot(aes(x = quality), data = red) + 
+  geom_histogram(binwidth = 1)
+summary(red$quality)
+```
+
+The "quality" score is of type int, and only takes discrete integer values. We see that "quality" appears to be normally distributed, with a median of 6.000 and mean of 5.636. Even though the min possible value according to the grading scale is 0 and the max is 10, in this dataset we see a min of 3 and a max of 8. Both median and mean are within the 5-6 range.
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Factor1}
+# create new factor variable
+red$quality.factor <- factor(red$quality)
+
+ggplot(aes(x = quality.factor), data = red) + 
+  geom_histogram(stat="count")
+```
+
+We will create a new factor variable __"quality.factor"__ from the "quality" score which will help with some later boxplots.
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Factor2}
+# create new factor variable
+red$quality.rating <- ifelse(red$quality <= 4, "low", 
+                             ifelse(red$quality <= 6, "average", "high"))
+
+# order the factor from least to greatest
+red$quality.rating <- ordered(red$quality.rating, 
+                              levels = c("low", "average", "high"))
+
+ggplot(aes(x = quality.rating), data = red) + 
+  geom_histogram(stat="count")
+```
+
+We will also create the ordered factor variable __"quality.rating"__ with the "quality" score divided into 3 descriptive levels: __"low"__ (0 - 4), __"average"__ (5 - 6), and __"high"__ (7 - 10).
+
+Since there are only 11 independent variables (from 13 total excluding "quality" and "X"), we can easily individually check the distributions and summaries for each. 
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_2}
+# histogram of fixed.acidity
+ggplot(aes(x = fixed.acidity), data = red) + 
+  geom_histogram(binwidth = 0.1)
+summary(red$fixed.acidity)
+```
+
+__"fixed.acidity"__ distribution is right-skewed with a median of 7.9 and mean of 8.32
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_3}
+ggplot(aes(x = volatile.acidity), data = red) + 
+  geom_histogram(binwidth = 0.01)
+summary(red$volatile.acidity)
+```
+
+__"volatile.acidity"__ distribution is mostly normal with a median of 0.52 and mean of 0.5278, and some outliers on the right.
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_4}
+ggplot(aes(x = citric.acid), data = red) + 
+  geom_histogram(binwidth = 0.02)
+summary(red$citric.acid)
+```
+
+__"citric.acid"__ is slightly right-skewed with median of 0.260 and mean of 0.271
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_5}
+ggplot(aes(x = residual.sugar), data = red) + 
+  geom_histogram(binwidth = 0.1)
+summary(red$residual.sugar)
+```
+
+__"residual.sugar"__ is right-skewed with median of 2.200 and mean of 2.539. There are many outliers on the right, including a high max of 15.500
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_6}
+ggplot(aes(x = chlorides), data = red) + 
+  geom_histogram(binwidth = 0.001)
+summary(red$chlorides)
+```
+
+__"chlorides"__ would appear normal except for the presence of values on the right which makes it right-skewed, with median of 0.07900 and mean of 0.08747. The max is very high compared with the majority values, at 0.61100
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_7}
+ggplot(aes(x = free.sulfur.dioxide), data = red) + 
+  geom_histogram(binwidth = 1)
+summary(red$free.sulfur.dioxide)
+```
+
+__"free.sulfur.dioxide"__ is right-skewed, with median of 14.00 and mean of 15.87. There are some outliers including the max of 72.00
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_8}
+ggplot(aes(x = total.sulfur.dioxide), data = red) + 
+  geom_histogram(binwidth = 1)
+summary(red$total.sulfur.dioxide)
+```
+
+__"total.sulfur.dioxide"__ is similar to the previous, right-skewed with median of 38.00 and mean of 46.67. There are some outliers including the max of 289.00
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_9}
+ggplot(aes(x = density), data = red) + 
+  geom_histogram(binwidth = 0.0002)
+summary(red$density)
+```
+
+__"density"__ is normally distributed with median of 0.9968 and mean of 0.9967
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_10}
+ggplot(aes(x = pH), data = red) + 
+  geom_histogram(binwidth = 0.01)
+summary(red$pH)
+```
+
+__"pH"__ is also normally distributed, with median of 3.310 and mean of 3.311
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_11}
+ggplot(aes(x = sulphates), data = red) + 
+  geom_histogram(binwidth = 0.01)
+summary(red$sulphates)
+```
+
+__"sulphates"__ is right-skewed with median of 0.6200 and mean of 0.6581. Some outliers including the max of 2.000
+
+```{r echo=FALSE, fig.width=6, fig.height=4, Univariate_Plots_12}
+ggplot(aes(x = alcohol), data = red) + 
+  geom_histogram(binwidth = 0.1)
+summary(red$alcohol)
+```
+
+__"alcohol"__ is also right-skewed, with median of 10.20 and mean of 10.42
+
+------
+
+# Univariate Analysis
+
+#### What is the structure of your dataset?
+
+There are 1599 observations of red wines, and 13 total variables. Of these, only 12 are relevant, as the variable "X" is an identifier. The variable "quality" is the dependent variable of interest, since we are interested in predicting "quality" using the other 11 variables which measure chemical properties of the red wines.
+
+- All 11 chemical property variables are numeric, there are no categoric variables.  
+- There are no missing / NA values in the dataset.
+- The distributions are either __normal__ ("quality", "volatile.acidity", "density", "pH") or __right-skewed__ ("fixed.acidity", "citric.acid", "residual.sugar", "chlorides", "free.sulfur.dioxide", "total.sulfur.dioxide", "sulphates", "alcohol") 
+
+#### What is/are the main feature(s) of interest in your dataset?
+The main feature of interest in the red wines dataset is the __"quality"__ score. We are interested in seeing which of the other 11 features are related to the "quality", and also in creating a predictive model for "quality" based on the relevant variables out of the 11.
+
+#### What other features in the dataset do you think will help support your investigation into your feature(s) of interest?
+
+Not knowing much about wines or alcohol, each of the 11 chemical variable properties is equally likely to influence the "quality" score. We will find out more in the bivariate investigation section.
+
+#### Did you create any new variables from existing variables in the dataset?
+
+The new categoric variable __"quality.factor"__ was created from the integer/numeric variable "quality". This is justified since "quality" only has discrete integer values. 
+
+The new categoric variable __"quality.rating"__ was also created from "quality", but this time divides the score into ratings of __"low"__ (0 - 4), __"average"__ (5 - 6), and __"high"__ (7 - 10).
+
+#### Of the features you investigated, were there any unusual distributions? Did you perform any  operations on the data to tidy, adjust, or change the form of the data? If so, why did you do this?
+
+This was a relatively tidy dataset with no missing values, and no cleaning operations were necessary. The only adjustment was adding the __"quality.factor"__ and __"quality.rating"__ categoric variables to use in later boxplots. 
+
+------
+
+# Bivariate Plots Section
+
+Since we are interested in predicting the output variable "quality", most of this section will be plotting the 11 checmical property variables against "quality". But before doing that, first plot a scatterplot matrix of all the variables (13 - exclude "X") against each other to see if there are any other interesting relationships:
+
+```{r echo=FALSE, fig.width=16, fig.height=16, Scatterplot_Matrix}
+# plot scatterplot matrix
+# make sure column names are wrapped/visible
+ggpairs(red[ ,2:15], 
+        lower = list(continuous = wrap("points", color = "skyblue4", 
+                                       alpha = 0.1), 
+                     combo = wrap("box", color = "lightseagreen", 
+                                  alpha = 0.8)), 
+        upper = list(combo = wrap("box", color = "lightseagreen", 
+                                  alpha = 0.8)),
+        diag = list(continuous = wrap("densityDiag",  color = "mediumpurple3", 
+                                      alpha = 0.5)),
+        columnLabels = gsub('.', ' ', colnames(red[ ,2:15]), fixed = T), 
+        labeller = label_wrap_gen(10))
+```
+
+Since the original 12 variables are numeric, `ggpairs` will show scatterplots in the matrix, and boxplots against the newly created factor variable "quality.factor"
+
+```{r echo=FALSE, fig.width=16, fig.height=12, Correlation_Matrix}
+# plot correlation matrix of numeric variables
+ggcorr(red[, 2:13], label = TRUE, label_round = 3, label_size = 6)
+```
+
+From the correlation matrix, we can observe the pairs of variables that are highly correlated:  
+
+- __quality : alcohol (0.476)__   
+- __quality : volatile.acidity (-0.391)__     
+- __alcohol : density (-0.496)__  
+- __sulphates : chlorides (0.371)__  
+- __sulphates : citric.acid (0.313)__  
+- __pH : citric.acid (-0.542)__ - not surprising since pH is related to acidity level   
+- __pH : fixed.acidity (-0.683)__ - same as above  
+- __pH : density (-0.342)__  
+- __density : residual.sugar (0.355)__  
+- __density : citric.acid (0.365)__  
+- __density : fixed.acidity (0.668)__  
+- __total.sulfur.dioxide : free.sulfur.dioxide (0.668)__ - similar since both are sulfur dioxide measures  
+- __citric.acid : volatile.acidity (-0.552)__ - again, not surprising that the acid level is related to an acidity measure   
+- __citric.acid : fixed.acidity (0.672)__ - same as above  
+
+Now, let's plot the 11 chemical property variables against the __"quality"__ score, and the __"quality.rating"__ factor.
+
+```{r echo=FALSE, Bivariate_Plots_1}
+# fixed.acidity v. quality
+p1 <- ggplot(aes(x = quality.factor, y = fixed.acidity), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = fixed.acidity), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = fixed.acidity), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = fixed.acidity), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"fixed.acidity"__ - a weak positive trend (0.124) as "quality"" increases, more obvious on the "quality.rating" plot.
+
+```{r echo=FALSE, Bivariate_Plots_2}
+# volatile.acidity v. quality
+p1 <- ggplot(aes(x = quality.factor, y = volatile.acidity), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = volatile.acidity), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = volatile.acidity), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = volatile.acidity), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"volatile.acidity"__ - a negative trend (-0.391) as "quality" / "quality.rating" increases. This fits the strong negative correlation coefficient from the earlier matrix.
+
+```{r echo=FALSE, Bivariate_Plots_3}
+# citric.acid v. quality
+p1 <- ggplot(aes(x = quality.factor, y = citric.acid), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = citric.acid), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = citric.acid), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = citric.acid), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"citric.acid"__ - a postive trend (0.226) to both "quality" and "quality.rating" measures. But then, "citric.acid" is strongly correlated with the earlier term "volatile.acidity" (coefficient of -0.552)
+
+```{r echo=FALSE, Bivariate_Plots_4}
+# residual.sugar v. quality
+p1 <- ggplot(aes(x = quality.factor, y = residual.sugar), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = residual.sugar), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = residual.sugar), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = residual.sugar), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"residual.sugar"__ - many outliers at high values which makes the plot harder to read. No real positive nor negative trend can be seen (0.014)
+
+```{r echo=FALSE, Bivariate_Plots_5}
+# chlorides v. quality
+p1 <- ggplot(aes(x = quality.factor, y = chlorides), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = chlorides), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = chlorides), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = chlorides), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"chlorides"__ - again, many high value outliers make the plot hard to read, but from the interquartile ranges of the boxpot we can see a weak negative trend (-0.129)
+
+```{r echo=FALSE, Bivariate_Plots_6}
+# free.sulfur.dioxide v. quality
+p1 <- ggplot(aes(x = quality.factor, y = free.sulfur.dioxide), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = free.sulfur.dioxide), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = free.sulfur.dioxide), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = free.sulfur.dioxide), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"free.sulfur.dioxides"__ - average "quality.rating" has higher "free.sulfur.dioxide" values than either low or high ratings. Since the relationship isn't linear, we don't expect a high correlation coefficient either (-0.051)
+
+```{r echo=FALSE, Bivariate_Plots_7}
+# total.sulfur.dioxide v. quality
+p1 <- ggplot(aes(x = quality.factor, y = total.sulfur.dioxide), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = total.sulfur.dioxide), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = total.sulfur.dioxide), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = total.sulfur.dioxide), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"total.sulfur.dioxides"__ - same as the plot for "free.sulfur.dioxides", which makes sense as "total.sulfur.dioxides" is strongly correlated with it (0.668). No linear relation to "quality" and "quality.rating" (though the correlation coefficient is -0.185, likely due to the decreasing mean when moving from "quality" score 5 to 6)
+
+```{r echo=FALSE, Bivariate_Plots_8}
+# density v. quality
+p1 <- ggplot(aes(x = quality.factor, y = density), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = density), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = density), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = density), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"density"__ - a slight negative trend (-0.175)
+
+```{r echo=FALSE, Bivariate_Plots_9}
+# pH v. quality
+p1 <- ggplot(aes(x = quality.factor, y = pH), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = pH), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = pH), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = pH), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"pH"__ - also a slight negative trend, though the correlation coefficient is low (-0.058). But we know that "pH" is correlated with "fixed.acidity" (-0.683), "volatile.acidity" (0.235), and "citric.acid" (-0.542) which all have slight linear trends with "quality" / "quality.rating"
+
+```{r echo=FALSE, Bivariate_Plots_10}
+# sulphates v. quality
+p1 <- ggplot(aes(x = quality.factor, y = sulphates), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = sulphates), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = sulphates), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = sulphates), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"sulphates"__ - a postive linear trend (0.251)
+
+```{r echo=FALSE, Bivariate_Plots_11}
+# alcohol v. quality
+p1 <- ggplot(aes(x = quality.factor, y = alcohol), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.factor, y = alcohol), data = red, 
+                     alpha = 0.2, color = "maroon4")
+p2 <- ggplot(aes(x = quality.rating, y = alcohol), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = alcohol), data = red, 
+                     alpha = 0.2, color = "maroon4")
+grid.arrange(p1, p2, ncol = 2)
+```
+
+__"alcohol"__ - a rather strong postive linear trend (0.476). "alcohol" measure remains relatively level from score 3 to score 5, then increases as the "quality" increases from 6 to 8. 
+
+Let's summarise the 11 chemical properties across the 3 subjective quality ratings (__"quality.rating"__) in a combined boxplot. Remove the extreme outliers by limiting the y-axis to the 95% percentile values for each variable. 
+
+```{r echo=FALSE, fig.width=16, fig.height=20, Bivariate_Plots_Combined}
+# combined boxplots - limit y to 95% percentile
+p1 <- ggplot(aes(x = quality.rating, y = fixed.acidity), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = fixed.acidity), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$fixed.acidity, 0.025), 
+             quantile(red$fixed.acidity, 0.975))
+p2 <- ggplot(aes(x = quality.rating, y = volatile.acidity), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = volatile.acidity), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$volatile.acidity, 0.025), 
+             quantile(red$volatile.acidity, 0.975))
+p3 <- ggplot(aes(x = quality.rating, y = citric.acid), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = citric.acid), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$citric.acid, 0.025), 
+             quantile(red$citric.acid, 0.975))
+p4 <- ggplot(aes(x = quality.rating, y = residual.sugar), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = residual.sugar), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$residual.sugar, 0.025), 
+             quantile(red$residual.sugar, 0.975))
+p5 <- ggplot(aes(x = quality.rating, y = chlorides), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = chlorides), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$chlorides, 0.025), 
+             quantile(red$chlorides, 0.975))
+p6 <- ggplot(aes(x = quality.rating, y = free.sulfur.dioxide), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = free.sulfur.dioxide), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$free.sulfur.dioxide, 0.025), 
+             quantile(red$free.sulfur.dioxide, 0.975))
+p7 <- ggplot(aes(x = quality.rating, y = total.sulfur.dioxide), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = total.sulfur.dioxide), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$total.sulfur.dioxide, 0.025), 
+             quantile(red$total.sulfur.dioxide, 0.975))
+p8 <- ggplot(aes(x = quality.rating, y = density), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = density), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$density, 0.025), 
+             quantile(red$density, 0.975))
+p9 <- ggplot(aes(x = quality.rating, y = pH), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = pH), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$pH, 0.025), 
+             quantile(red$pH, 0.975))
+p10 <- ggplot(aes(x = quality.rating, y = sulphates), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = sulphates), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$sulphates, 0.025), 
+             quantile(red$sulphates, 0.975))
+p11 <- ggplot(aes(x = quality.rating, y = alcohol), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = alcohol), data = red, 
+                     alpha = 0.2, color = "maroon4") + 
+        ylim(quantile(red$alcohol, 0.025), 
+             quantile(red$alcohol, 0.975))
+
+grid.arrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, ncol = 3)
+```
+
+------
+
+# Bivariate Analysis
+
+#### Talk about some of the relationships you observed in this part of the investigation. How did the feature(s) of interest vary with other features in the dataset?
+
+From the scatterplots with boxplot overlays and the correlation analysis, we can make some generalisations about what factors are more likely to affect the "quality" measure: 
+
+- __factors that appear to affect "quality" (strong trend) :__  
+
+  - volatile.acidity (-0.391)  
+  - citric.acid (0.226)  
+  - sulphates (0.251)  
+  - alcohol (0.476, highest correlation factor)  
+  
+- __factors that might affect "quality" (slight trend) :__ 
+
+  - fixed.acidity (0.124)  
+  - chlorides (-0.129)  
+  - total.sulfur.dioxide (-0.185)  
+  - density (-0.175)  
+  - pH (even though the correlation coefficient is low at -0.058)  
+  
+- __factors that do not appear to affect "quality" (no trend or nonlinear trend) :__   
+
+  - residual.sugar (0.014)  
+  - free.sulfur.dioxide (-0.051)  
+
+Often, it was easier to see a relationship on the "quality.rating" plots which only have 3 levels compared to the "quality" plots with 6 levels
+
+#### Did you observe any interesting relationships between the other features (not the main feature(s) of interest)?
+
+There are some chemical property variables which are strongly correlated with each other, which makes sense since they measure properties which are closely related: 
+
+- "free.sulfur.dioxide" and "total.sulfur.dioxide"
+- "fixed.acidity", "volatile.acidity", "citric.acid" and "pH"
+
+Some strong relationships probably have a chemical explanation:
+
+- "fixed.acidity", "volatile.acidity", "citric.acid", "pH" and __"density"__
+- "citric.acid" and "sulphates"
+- "chlorides" and "sulphates"
+
+#### What was the strongest relationship you found?
+
+These were the strongest correlations among all the variables:  
+
+- __pH : citric.acid (-0.542)__ - not surprising for the neative correlation since pH is related to acidity (less pH = more acidity)  
+- __pH : fixed.acidity (-0.683)__ - same as above   
+- __density : fixed.acidity (0.668)__ - there must be a chemical explanation for this, which is that acid is more dense than water  
+- __total.sulfur.dioxide : free.sulfur.dioxide (0.668)__ - not surprising for the strong positive correlation, both are sulfur measures   
+- __citric.acid : volatile.acidity (-0.552)__ - not surprising that the acid level is related to an acidity measure, but surprising that the coefficient is negative      
+- __citric.acid : fixed.acidity (0.672)__ - the coefficient sign is positive, surprising since it is negative for "volatile.acidity"  
+
+The strongest correlations compared to "quality" are:  
+
+- quality : __alcohol__ (0.476)    
+- quality : __sulphates__ (0.251)  
+- quality : __citric.acid__ (0.226)  
+- quality : __volatile.acidity__ (-0.391)   
+
+------
+
+# Multivariate Plots Section
+
+From the bivariate analysis section, we see that the strongest contenders for influencing the "quality" score are, in order:   
+
+- alcohol (0.476)   
+- sulphates (0.251)   
+- citric.acid (0.226)   
+- volatile.acidity (-0.391)    
+
+Since "alcohol"" has the strongest relationship with "quality"", let's plot the other variables here against "alcohol"" to see if they have any influence on the "quality.rating", holding "alcohol" constant:    
+
+```{r echo=FALSE, Multivariate_Plots_1}
+# alcohol v sulphates
+ggplot(aes(x = alcohol, y = sulphates, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  geom_smooth() + theme_dark()
+
+ggplot(aes(x = alcohol, y = sulphates), data = red) + 
+  facet_wrap( ~ quality.rating) + 
+  geom_jitter(width = 0.05, color = 'skyblue3', alpha = 0.2) + 
+  geom_smooth(color = 'deeppink3')
+```
+
+__"alcohol" v "sulphates"__ : Holding the alcohol level constant, higher sulphates values seem to lead to higher quality ratings.  
+
+```{r echo=FALSE, Multivariate_Plots_2}
+# alcohol v citric.acid
+ggplot(aes(x = alcohol, y = citric.acid, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  geom_smooth() + theme_dark()
+
+ggplot(aes(x = alcohol, y = citric.acid), data = red) + 
+  facet_wrap( ~ quality.rating) + 
+  geom_jitter(width = 0.05, color = 'skyblue3', alpha = 0.2) + 
+  geom_smooth(color = 'deeppink3')
+```
+
+__"alcohol" v "citric.acid"__ : Not as clear as for the last variable due to the presence of outliers, but generally higher citric acid value will have higher quality ratings.  
+
+```{r echo=FALSE, Multivariate_Plots_3}
+# alcohol v volatile.acidity
+ggplot(aes(x = alcohol, y = volatile.acidity, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  geom_smooth() + theme_dark()
+
+ggplot(aes(x = alcohol, y = volatile.acidity), data = red) + 
+  facet_wrap( ~ quality.rating) + 
+  geom_jitter(width = 0.05, color = 'skyblue3', alpha = 0.2) + 
+  geom_smooth(color = 'deeppink3')
+```
+
+__"alcohol" v "volatile.acidity"__ : Lower volatile acidity is associated with higher quality ratings. Most of the low quality rating red wines have a high volatile acidity value.
+
+```{r echo=FALSE, Multivariate_Plots_4}
+# citric.acid v volatile.acidity
+ggplot(aes(x = citric.acid, y = volatile.acidity, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  geom_smooth() + theme_dark()
+
+ggplot(aes(x = citric.acid, y = volatile.acidity), data = red) + 
+  facet_wrap( ~ quality.rating) + 
+  geom_jitter(width = 0.05, color = 'skyblue3', alpha = 0.2) + 
+  geom_smooth(color = 'deeppink3')
+```
+
+__"citric.acid" v "volatile.acidity"__ : During the bivariate analysis, we saw that these 2 variables had a strong negative correlation (-0.552). So we plot them together here and see that the negative trend is visible, along with confirming the finding from the previous plot ("alcohol" v "volatile.acidity") that lower volatile acidity has higher quality ratings.
+
+
+Now let's take a brief look at the factors which have might affect the "quality" score, which had a weaker trend than the previous factors:  
+
+  - fixed.acidity (0.124)  
+  - chlorides (-0.129)  
+  - total.sulfur.dioxide (-0.185)  
+  - density (-0.175)   
+  - pH (-0.058)  
+
+```{r echo=FALSE, Multivariate_Plots_5}
+# alcohol v fixed.acidity
+ggplot(aes(x = alcohol, y = fixed.acidity, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  geom_smooth() + theme_dark()
+```
+
+__"alcohol" v "fixed.acidity"__ : Almost no correlation (-0.062). But we see that higher fixed acidity values usually have higher quality ratings. This might be related to the negative relationship that alcohol has with volatile acidity that we saw earlier, since "fixed.acidity" and "volatile.acidity" has a negative correlation (-0.256) which means that we expect a positive relationship between "alcohol" and "fixed.acidity"
+
+```{r echo=FALSE, Multivariate_Plots_6}
+# alcohol v chlorides
+# get rid of vertical outliers
+ggplot(aes(x = alcohol, y = chlorides, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  geom_smooth() + theme_dark() + 
+  ylim(quantile(red$chlorides, 0), 
+       quantile(red$chlorides, 0.975))
+```
+
+__"alcohol" v "chlorides"__ : A weaker negative correlation (-0.221) which we can see in the plot. There were many higher value outliers for "chloride" so we only plotted the 97.5% percentile.
+
+```{r echo=FALSE, Multivariate_Plots_7}
+# alcohol v total.sulfur.dioxide
+# get rid of vertical outliers
+ggplot(aes(x = alcohol, y = total.sulfur.dioxide, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  geom_smooth() + theme_dark() + 
+  ylim(quantile(red$total.sulfur.dioxide, 0), 
+       quantile(red$total.sulfur.dioxide, 0.95))
+```
+
+__"alcohol" v "total.sulfur.dioxide"__ : Weak negative correlation (-0.206), not really visible in the plot due to the dispersal and high quality line being in the middle. There were many higher value outliers for "total.sulfur.dioxide" so we only plotted the 97.5% percentile.
+
+```{r echo=FALSE, Multivariate_Plots_8}
+# alcohol v density
+ggplot(aes(x = alcohol, y = density, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  geom_smooth() + theme_dark()
+```
+
+__"alcohol" v "density"__ : A strong negative correlation (-0.496). In the plot we see that with constant alcohol value, lower density is slightly associated with lower quality rating. 
+
+```{r echo=FALSE, Multivariate_Plots_9}
+# alcohol v pH
+ggplot(aes(x = alcohol, y = pH, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  geom_smooth() + theme_dark()
+```
+
+__"alcohol" v "pH"__ : A weak correlation (0.206), and we see that for the same alcohol value, higher pH wines generally have lower quality ratings.  
+
+We can also check several groups of variables that have some relationship with each other, that we uncovered from the correlation plot in the bivariate analysis section:  
+
+- "fixed.acidity", "volatile.acidity", "citric.acid", "pH", "density"  
+- "citric.acid", "chlorides", "sulphates"  
+- "free.sulfur.dioxide", "total.sulfur.dioxide", "residual.sugar"  
+
+```{r echo=FALSE, Multivariate_Plots_10}
+# scatterplot matrix of: 
+#   fixed.acidity, volatile.acidity, citric.acid, pH, density
+
+# correlation plot
+ggcorr(red[, c(2,3,4,10,9)], label = TRUE, label_round = 3, label_size = 6)
+
+# change defaul color and fill palette for ggplot
+ggplot <- function(...) ggplot2::ggplot(...) + 
+  scale_color_brewer(palette="Reds") + 
+  scale_fill_brewer(palette="Reds") + 
+  theme_dark()
+
+# add change to GGally
+unlockBinding("ggplot",parent.env(asNamespace("GGally")))
+assign("ggplot",ggplot,parent.env(asNamespace("GGally")))
+
+# ggpairs with color brewer palette
+ggpairs(red, columns = c(2,3,4,10,9), 
+        lower = list(continuous = wrap("smooth", method = "lm")), 
+        ggplot2::aes(colour=quality.rating, alpha = 0.2))
+```
+
+__"fixed.acidity", "volatile.acidity", "citric.acid", "pH", "density"__ : These are the acid / acidity / pH measures, plus density. We can see that there is some trend (either positive or negative) among these pairs, except for "volatile.acidity" v "density" which is relatively level. From the overlapping histograms, we can see that higher "quality.rating"" wines have lower "volatile.acidity" and higher "citric.acid" values.  
+
+```{r echo=FALSE, Multivariate_Plots_11}
+# scatterplot matrix of: 
+#   citric.acid, chlorides, sulphates
+
+# correlation plot
+ggcorr(red[, c(4,6,11)], label = TRUE, label_round = 3, label_size = 6)
+
+# ggpairs with color brewer palette
+ggpairs(red, columns = c(4,6,11), 
+        lower = list(continuous = wrap("smooth", method = "lm")), 
+        ggplot2::aes(colour=quality.rating, alpha = 0.2))
+```
+
+__"citric.acid", "chlorides", "sulphates"__ : Positive correlation among these 3 variables. The histogram shows that higher "quality.rating" is associated with higher "citric.acid", lower "chlorides" and higher "sulphates".  
+
+```{r echo=FALSE, Multivariate_Plots_12}
+# scatterplot matrix of: 
+#   free.sulfur.dioxide, total.sulfur.dioxide, residual.sugar
+
+# correlation plot
+ggcorr(red[, c(7,8,5)], label = TRUE, label_round = 3, label_size = 6)
+
+# ggpairs with color brewer palette
+ggpairs(red, columns = c(7,8,5), 
+        lower = list(continuous = wrap("smooth", method = "lm")), 
+        ggplot2::aes(colour=quality.rating, alpha = 0.2))
+
+# change back to the default color palette
+ggplot <- function(...) ggplot2::ggplot(...)
+
+# add change to GGally
+unlockBinding("ggplot",parent.env(asNamespace("GGally")))
+assign("ggplot",ggplot,parent.env(asNamespace("GGally")))
+```
+
+__"free.sulfur.dioxide", "total.sulfur.dioxide", "residual.sugar"__ : Positive correlation among all 3 variables, but the histograms don't really show any relationship of the "quality.rating" score with these variables. 
+
+
+## Linear Regression Model
+
+Let's create a linear regression model to predict the "quality" score using __all__ the chemical property variables (full model):  
+
+```{r echo=FALSE, Model_1}
+# full model
+model_1 <- lm(quality ~ ., data = red[ , 2:13])
+summary(model_1)
+
+# vif analysis
+car::vif(model_1)
+```
+
+In the summary, we can see which variables are significant to the model:  
+
+- volatile.acidity ***  
+- chlorides ***  
+- free.sulfur.dioxide *  
+- total.sulfur.dioxide ***  
+- pH *  
+- sulphates ***  
+- alcohol ***  
+
+Though there are many significant variables, the adjusted R-squared is relatively low at 0.3561, which means that it is not a great predictor for variations in the output variable. 
+
+Several variables have high VIF values, which means that there is multicollinearity among the variables of the full model. 
+
+For the next model iteration, we will decrease the number of predictor variables by only including the variables that were marked signifcant from the full model's summary. 
+
+```{r echo=FALSE, Model_2}
+# include relevant factors
+model_2 <- lm(quality ~ volatile.acidity + chlorides + total.sulfur.dioxide + 
+                        free.sulfur.dioxide + pH + 
+                        sulphates + alcohol, data = red[ , 2:13])
+summary(model_2)
+
+# vif analysis
+car::vif(model_2)
+```
+
+This second model has significance of close to 0 for all the included predictor variables, except for "free.sulfur.dioxide" with significance of * (<= 0.01). Adjusted R-squared has increased slightly, to 0.3567
+
+The VIF values are now lower (< 2) for all the variables in the model.  
+
+Let's try removing "free.sulfur.dioxide" in the next model since we already included "total.sulfur.dioxide" (which is highly correlated with "free.sulfur.dioxide").
+
+```{r echo=FALSE, Model_3}
+# include relevant factors
+model_3 <- lm(quality ~ volatile.acidity + chlorides + total.sulfur.dioxide + 
+                        pH + sulphates + alcohol, data = red[ , 2:13])
+summary(model_3)
+
+# vif analysis
+car::vif(model_3)
+```
+
+In this third model, all 6 predictors have significance of close to 0. However, the adjusted R-squared has decreased slightly to 0.3548. So we know that the 6 predictors are very likely to influence the quality score, but the explantory level of our model is still not good. There are likely to be variables we are missing that are needed in order to create a better model with more explanatory power.   
+
+The VIF values are lower still, now all < 1.5 which means a low level of multicollinearity. 
+
+```{r echo=FALSE, Model_Plot}
+# predict values using model 2
+red$model_2 <- predict(model_2, red[ , 2:13])
+
+# plot predictions against actuals
+ggplot(aes(x = quality, y = model_2 - quality, color = quality.rating), 
+             data = red) + 
+  geom_jitter(width = 0.5, alpha = 0.4) + 
+  scale_color_brewer(palette = "Reds") + 
+  theme_dark()
+
+print("summary : actual quality values")
+summary(red$quality)
+print("summary : predicted quality values from model 2")
+summary(red$model_3)
+print("quality rating distribution")
+summary(red$quality.rating)
+```
+
+This is a plot of the error (predicted - actual) values from using model 2 which had the highest adjusted R-squared. We can see that from the plot and the summary tables that the model overpredicts for low scores and underpredicts for high scores (min 4.304 in prediction versus min 3 in actual, max 7.342 in prediction versus max 8 in actual). This clustering around the middle/average region of 5-6 scores likely is due to the concentration of our data points in this range - 1319 out of 1499 (87.99%) of our datapoints are in the middle/average range.
+
+
+# Multivariate Analysis
+
+#### Talk about some of the relationships you observed in this part of the investigation. Were there features that strengthened each other in terms of looking at your feature(s) of interest?
+
+From the bivariate analysis, we saw that "alcohol" has the highest correlation with the "quality" score. So we explored the other variables compared to "alcohol", and splitting or faceting by "quality.rating". We saw some noticeable trends associated with the higher ratings:  
+
+- higher sulphates  
+- higher citric.acid  
+- lower volatile.acidity  
+- higher fixed.acidity  
+- lower chlorides  
+- higher density  
+- lower pH  
+
+Very small effects from:  
+
+- total.sulfur.dioxide  
+
+#### Were there any interesting or surprising interactions between features?
+
+- "fixed.acidity" has low correlation with "quality" (0.124), and almost no correlation with "alcohol" (-0.062), but when we plot it against "alcohol" we can see a positive trend - with constant alcohol value, higher fixed acidity values usually have higher quality ratings. Probably due to the negative relationship that "alcohol"" has with "volatile acidity" (-0.202) and the negative correlation between "fixed.acidity" and "volatile.acidity" (-0.256)  
+- "density" has negative correlation with "quality" (-0.175), but when plotted against alcohol, higher density values have higer quality ratings. Likely due to the strong negative correlation between "alcohol" and "density" (-0.496)  
+- "total.sulfur.dioxide" and "free.sulfur.dioxide" have low correlations with "quality"" (-0.185, -0.051), but still appear in the linear model  
+
+#### OPTIONAL: Did you create any models with your dataset? Discuss the strengths and limitations of your model.
+
+There were 3 linear models created - a full model (model_1), a model removing the non-significant factors from the full model (model_2), and a model removing an additional factor "free.sulfur.dioxide" (model_3). 
+
+The model with the highest adjusted R-squared (meaning explantory power) was model_2, though this value was low at 0.3567. But VIF analysis showed that the 7 factors in this model did not have a high degree of multicollinearity, so we use these variables which are all significant: 
+
+- volatile.acidity  
+- chlorides  
+- total.sulfur.dioxide  
+- free.sulfur.dioxide  
+- pH  
+- sulphates  
+- alcohol  
+
+Model strength(s): The low significance values show that these chemical properties are very likely related to the quality score, which is a goal of the exploration (to see which variables influence the quality)   
+
+Model weakness(es): As a linear regression model, the output is a numeric number with decimals even though the quality scale is a discrete integer. The explanatory power is low (low adjusted R-squared). We have a lot of data (~88%) with average quality scores (5, 6), but not a lot of data at the low and high ends (<= 4, >= 7) which means our model is not very good predicting low and high values - as seen in the error plot where it overestimates bad quality wines and underestimates good quality wines. 
+
+------
+
+# Final Plots and Summary
+
+#### Plot One
+```{r echo=FALSE, fig.width=16, fig.height=20, Plot_One}
+p1 <- ggplot(aes(x = quality.rating, y = fixed.acidity), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = fixed.acidity), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$fixed.acidity, 0.025), 
+             quantile(red$fixed.acidity, 0.975)) + 
+        xlab("") + ylab("fixed acidity")
+p2 <- ggplot(aes(x = quality.rating, y = volatile.acidity), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = volatile.acidity), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$volatile.acidity, 0.025), 
+             quantile(red$volatile.acidity, 0.975)) + 
+        xlab("") + ylab("volatile acidity")
+p3 <- ggplot(aes(x = quality.rating, y = citric.acid), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = citric.acid), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$citric.acid, 0.025), 
+             quantile(red$citric.acid, 0.975)) + 
+        xlab("") + ylab("citric acid")
+p4 <- ggplot(aes(x = quality.rating, y = residual.sugar), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = residual.sugar), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$residual.sugar, 0.025), 
+             quantile(red$residual.sugar, 0.975)) + 
+        xlab("") + ylab("residual sugar")
+p5 <- ggplot(aes(x = quality.rating, y = chlorides), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = chlorides), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$chlorides, 0.025), 
+             quantile(red$chlorides, 0.975)) + 
+        xlab("") + ylab("chlorides")
+p6 <- ggplot(aes(x = quality.rating, y = free.sulfur.dioxide), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = free.sulfur.dioxide), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$free.sulfur.dioxide, 0.025), 
+             quantile(red$free.sulfur.dioxide, 0.975)) + 
+        xlab("") + ylab("free SO2")
+p7 <- ggplot(aes(x = quality.rating, y = total.sulfur.dioxide), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = total.sulfur.dioxide), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$total.sulfur.dioxide, 0.025), 
+             quantile(red$total.sulfur.dioxide, 0.975)) + 
+        xlab("") + ylab("total SO2")
+p8 <- ggplot(aes(x = quality.rating, y = density), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = density), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$density, 0.025), 
+             quantile(red$density, 0.975)) + 
+        xlab("") + ylab("density")
+p9 <- ggplot(aes(x = quality.rating, y = pH), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = pH), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$pH, 0.025), 
+             quantile(red$pH, 0.975)) + 
+        xlab("") + ylab("pH")
+p10 <- ggplot(aes(x = quality.rating, y = sulphates), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = sulphates), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$sulphates, 0.025), 
+             quantile(red$sulphates, 0.975)) + 
+        xlab("") + ylab("sulphates")
+p11 <- ggplot(aes(x = quality.rating, y = alcohol), data = red) +
+        geom_jitter(alpha = 0.2, color = "paleturquoise4") + 
+        geom_boxplot(aes(x = quality.rating, y = alcohol), data = red, 
+                     alpha = 0, color = "maroon4") + 
+        ylim(quantile(red$alcohol, 0.025), 
+             quantile(red$alcohol, 0.975)) + 
+        xlab("") + ylab("alcohol")
+
+grid.arrange(p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, ncol = 3, 
+             top = textGrob("Chemical Values by Quality Rating", 
+                            gp=gpar(fontsize=20,font=3)))
+```
+
+#### Description One
+
+This is a summary of the 11 chemical properties across the 3 subjective quality ratings ("quality.rating" - "low", "average", "high") in a combined scatterplot and boxplot. The extreme outliers were removed by limiting the y-axis to the 95% percentile values for each variable.  
+
+As we move across each individual plot from left to right, from quality rating "low" to "high", we can see that some trends (positive or negative) are more obvious, such as the negative trends for "volatile.acidity" and "pH", and the positive trends for "citric.acid" and "alcohol".  
+  
+  
+#### Plot Two
+```{r echo=FALSE, fig.width=16, fig.height=20, Plot_Two}
+p1 <- ggplot(aes(x = alcohol, y = chlorides, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  ylim(quantile(red$chlorides, 0), 
+       quantile(red$chlorides, 0.975)) + 
+  geom_smooth() + theme_dark() + xlab("")
+
+p2 <- ggplot(aes(x = alcohol, y = volatile.acidity, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  ylim(quantile(red$volatile.acidity, 0), 
+       quantile(red$volatile.acidity, 0.975)) + 
+  geom_smooth() + theme_dark() + xlab("") + ylab("volatile acidity")
+
+p3 <- ggplot(aes(x = alcohol, y = sulphates, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  ylim(quantile(red$sulphates, 0), 
+       quantile(red$sulphates, 0.975)) + 
+  geom_smooth() + theme_dark() + xlab("")
+
+p4 <- ggplot(aes(x = alcohol, y = pH, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  ylim(quantile(red$pH, 0), 
+       quantile(red$pH, 0.975)) + 
+  geom_smooth() + theme_dark() + xlab("")
+
+p5 <- ggplot(aes(x = alcohol, y = free.sulfur.dioxide, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  ylim(quantile(red$free.sulfur.dioxide, 0), 
+       quantile(red$free.sulfur.dioxide, 0.975)) + 
+  geom_smooth() + theme_dark() + ylab("free sulfur dioxide")
+
+p6 <- ggplot(aes(x = alcohol, y = total.sulfur.dioxide, 
+           color = quality.rating), data = red) + 
+  geom_jitter(width = 0.05, alpha = 0.6) + 
+  scale_color_brewer(type = 'seq', palette = 'Reds') + 
+  ylim(quantile(red$total.sulfur.dioxide, 0), 
+       quantile(red$total.sulfur.dioxide, 0.975)) + 
+  geom_smooth() + theme_dark() + ylab("total sulfur dioxide")
+
+# grid.arrange(p1, p2, p3, p4, p5, p6, ncol = 2, 
+#              top = textGrob("Chemical Values by Alcohol and Quality Rating", 
+#                             gp=gpar(fontsize=20,font=3)))
+
+multiplots <- ggarrange(p1, p2, p3, p4, p5, p6, ncol=2, nrow=3, 
+                        common.legend = TRUE, legend="bottom")
+
+annotate_figure(multiplots, 
+  top = text_grob("Chemical Values by Alcohol and Quality Rating", size = 16))
+
+```
+
+#### Description Two
+
+we plot the 6 chemical property variables from linear model 2 (excluding "alcohol") against "alcohol" and "quality.rating" to see the influence of their values on the rating score, holding alcohol constant.  
+
+The 6 variables are:  
+
+- volatile.acidity (lower volatile acidity <-> higher quality rating)  
+- chlorides  (lower chlorides <-> higher quality rating)  
+- total.sulfur.dioxide (weak relation)   
+- free.sulfur.dioxide (weak relation)   
+- sulphates (higher sulphates <-> higher quality rating) 
+  
+  
+  
+#### Plot Three
+```{r echo=FALSE, Plot_Three}
+# scatterplot matrix of: 
+#   volatile.acidity
+#   chlorides
+#   total.sulfur.dioxide
+#   free.sulfur.dioxide
+#   sulphates
+#   alcohol
+#   quality / quality.factor
+
+# correlation plot
+#ggcorr(red[, c(3,6,8,7,11,12,13)], 
+#       label = TRUE, label_round = 3, label_size = 6,
+#       name = "correlation \nstrength") + 
+#  theme(legend.title = element_text(size = 12), 
+#        plot.title = element_text(size = 14)) + 
+#  ggplot2::labs(title = "Correlations of Quality and Relevant Chemical Factors")
+
+corrplot <- ggcorr(red[, c(3,6,8,7,11,12,13)], 
+                   label = TRUE, label_round = 3, label_size = 6,
+                   name = "correlation \nstrength") + 
+              theme(legend.title = element_text(size = 12))
+
+annotate_figure(corrplot, 
+   top = text_grob("Correlations of Quality and Relevant Chemical Factors", 
+                   size = 18))
+
+# change defaul color and fill palette for ggplot
+ggplot <- function(...) ggplot2::ggplot(...) + 
+  scale_color_brewer(palette="Reds") + 
+  scale_fill_brewer(palette="Reds") + 
+  theme_dark()
+
+# add change to GGally
+unlockBinding("ggplot",parent.env(asNamespace("GGally")))
+assign("ggplot",ggplot,parent.env(asNamespace("GGally")))
+
+# ggpairs with color brewer palette
+ggpairs(red, columns = c(3,6,8,7,11,12,15), 
+        lower = list(continuous = wrap("smooth", method = "lm")), 
+        ggplot2::aes(colour=quality.rating, alpha = 0.2), 
+        title = "Scatterplot of Quality Rating and Relevant Chemical Factors") + 
+  theme(plot.title = element_text(size = 14))
+
+# change back to the default color palette
+ggplot <- function(...) ggplot2::ggplot(...)
+
+# add change to GGally
+unlockBinding("ggplot",parent.env(asNamespace("GGally")))
+assign("ggplot",ggplot,parent.env(asNamespace("GGally")))
+```
+
+#### Description Three
+
+This is a correlation and scatterplot matrix of the variables that are relavant to the linear model (model 2 in the multivariate analysis section) and "quality", coloured by "quality.rating". 
+
+These relevant variables are:  
+
+- volatile.acidity  
+- chlorides  
+- total.sulfur.dioxide  
+- free.sulfur.dioxide  
+- sulphates  
+- alcohol  
+- quality / quality.factor  
+
+From the `ggcorr` matrix and `ggpairs` plot we can see positive/negative trend of the relationship and the strength of the relation.  
+  
+  
+------
+
+# Reflection
+
+#### Where did I run into difficulties in the analysis?
+
+The main difficulty was trying to build a good predictive model with the existing data, which ultimately failed since the explanatory power of the final model was low (model_2 had the highest adjusted R-squared at 0.3567). Also, the linear regression model predicts a numeric number with decimals, while the "quality" score is a discrete integer.    
+
+Also, since there was not a lot of data outside of the "average" quality score range (~88% of observations were "average" quality), it was hard to infer trends / make predictions for lower and higher quality cases.  
+
+#### Where did I find successes?
+
+We were successful at least in identifying variables which are correlatd with the output variable "quality" (from the correlation plots) and which likely influence the "quality" score (have significance close to 0 in the linear regression model). The scatterplots and `geom_smooth` lines were very helpful with showing patterns in the data.     
+
+However, all this is with the caveat that correlation does not equal causation, and that we are working with a dataset limited in observations (unequal distribution among the quality ratings) and characteristics (other objective or subjective properties that were not included).  
+
+#### What was surprising?
+
+- That the adjusted R-squared ended up being so low (0.3567), even though the variables were significant  
+- Even though "total.sulfur.dioxide" and "free.sulfur.dioxide" have low correlations with "quality"" (-0.185, -0.051), they are still included in the final model  
+
+#### How could the analysis be enriched in future work?
+
+The analysis can be improved by getting additional information about the existing wines, and getting additional observations of lower (< 5) and higher (> 6) wines, even though this was not part of the provided dataset.  
+  
+
+# References
+[1] dataset: https://docs.google.com/document/d/e/2PACX-1vRmVtjQrgEPfE3VoiOrdeZ7vLPO_p3KRdb_o-z6E_YJ65tDOiXkwsDpLFKI3lUxbD6UlYtQHXvwiZKx/pub?embedded=true  
+[2] variable description: https://s3.amazonaws.com/udacity-hosted-downloads/ud651/wineQualityInfo.txt  
+[3] missing value check: https://stackoverflow.com/questions/38924002/r-check-if-na-exists-in-any-column-of-r-dataframe-row-then-if-so-remove-that  
+[4] conditionally replace values: https://stackoverflow.com/questions/32578082/r-how-to-replace-value-of-a-variable-conditionally
+[5] order factor variable: https://campus.datacamp.com/courses/introduction-to-r-for-finance/factors-4?ex=8#skiponboarding
+[6] ggpairs column label wrapping: https://stackoverflow.com/questions/43256948/wrap-column-name-text-in-ggpairs-in-r  
+[7] ggpairs plot colours: https://stackoverflow.com/questions/44426674/improving-the-readability-of-the-scatterplot-in-ggpairs-ggplot  
+[8] correlation matrix: https://stackoverflow.com/questions/45873483/ggpairs-plot-with-heatmap-of-correlation-values   
+[9] ggcorr options: https://rdrr.io/cran/GGally/man/ggcorr.html   
+[10] dark theme: http://www.sthda.com/english/wiki/ggplot2-themes-and-background-colors-the-3-elements  
+[11] using color brewer in ggpairs: https://stackoverflow.com/questions/22237783/user-defined-colour-palette-in-r-and-ggpairs  
+[12] add line to ggpairs: https://stackoverflow.com/questions/35085261/how-to-use-loess-method-in-ggallyggpairs-using-wrap-function  
+[13] corrplot title: https://yutannihilation.github.io/allYourFigureAreBelongToUs/ggally/ggcorr/  
+[14] grid.arrange title: https://stackoverflow.com/questions/14726078/changing-title-in-multiplot-ggplot2-using-grid-arrange  
+[15] vif analysis: http://www.sthda.com/english/articles/39-regression-model-diagnostics/160-multicollinearity-essentials-and-vif-in-r/  
+[16] hide legend: https://stackoverflow.com/questions/35618260/remove-legend-ggplot-2-2  
+[17] common legend for multiple plots: https://stackoverflow.com/questions/13649473/add-a-common-legend-for-combined-ggplots  
+[18] ggarrange title: https://rpkgs.datanovia.com/ggpubr/reference/annotate_figure.html  
